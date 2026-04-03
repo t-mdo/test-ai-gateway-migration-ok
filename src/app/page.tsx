@@ -1,16 +1,26 @@
 "use client";
 
-import { useChat } from "ai/react";
-import { useEffect, useRef } from "react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+import { useEffect, useRef, useState } from "react";
+
+const transport = new DefaultChatTransport({ api: "/api/chat" });
 
 export default function Chat() {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } =
-    useChat();
+  const { messages, sendMessage, status } = useChat({ transport });
+  const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight);
   }, [messages]);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!input.trim()) return;
+    sendMessage({ text: input });
+    setInput("");
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -30,12 +40,14 @@ export default function Chat() {
                 {m.role === "assistant" ? "AI" : "U"}
               </div>
               <div className="min-w-0 whitespace-pre-wrap leading-7">
-                {m.content}
+                {m.parts.map((part, i) =>
+                  part.type === "text" ? <span key={i}>{part.text}</span> : null
+                )}
               </div>
             </div>
           </div>
         ))}
-        {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
+        {status === "submitted" && (
           <div className="bg-[#444654]">
             <div className="mx-auto flex max-w-3xl gap-6 px-4 py-6">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-[#19c37d] text-sm font-bold">
@@ -48,17 +60,14 @@ export default function Chat() {
       </div>
 
       <div className="border-t border-white/10 bg-[#343541] p-4">
-        <form
-          onSubmit={handleSubmit}
-          className="mx-auto flex max-w-3xl items-end gap-3"
-        >
+        <form onSubmit={submit} className="mx-auto flex max-w-3xl items-end gap-3">
           <textarea
             value={input}
-            onChange={handleInputChange}
+            onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                handleSubmit(e);
+                submit(e);
               }
             }}
             placeholder="Send a message..."
@@ -67,7 +76,7 @@ export default function Chat() {
           />
           <button
             type="submit"
-            disabled={isLoading || !input.trim()}
+            disabled={status !== "ready" || !input.trim()}
             className="rounded-lg bg-[#19c37d] px-4 py-3 font-medium text-white transition-colors hover:bg-[#1a9d63] disabled:opacity-40"
           >
             Send
